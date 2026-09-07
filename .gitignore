@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+characters/*/chroma_db/
+characters/*/adapter/
+adapters/
+infra/*.pem
+infra/.last_instance_id
