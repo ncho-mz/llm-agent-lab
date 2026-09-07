@@ -4,8 +4,10 @@
 configs/model.yaml에 지정된 모델(+ 캐릭터 어댑터가 있으면 적용)로, 그 캐릭터의
 persona.md 말투로 답변 생성.
 
-실행: python agent/app.py [--character odysseus]
+실행: python agent/app.py [--character odysseus] [--adapter adapters/persona_skill]
 """
+from __future__ import annotations  # `str | None` 같은 3.10+ 문법을 3.9에서도 되게 함 (EC2 기본 파이썬 대응)
+
 import argparse
 import sys
 from pathlib import Path
@@ -26,7 +28,7 @@ from config import load_config
 from rag.retriever import retrieve
 
 
-def load_model(cfg: dict, character: str):
+def load_model(cfg: dict, character: str, adapter_path: str | None = None):
     tokenizer = AutoTokenizer.from_pretrained(cfg["base_model"])
 
     if cfg["load_in_4bit"]:
@@ -51,12 +53,14 @@ def load_model(cfg: dict, character: str):
         else:
             model = AutoModelForCausalLM.from_pretrained(cfg["base_model"], dtype=torch.float32)
 
-    adapter_dir = characters.adapter_dir(character)
+    # --adapter로 명시하면 그걸 우선 사용 (예: 여러 캐릭터를 섞어 학습한 범용 persona_skill 어댑터).
+    # 없으면 이 캐릭터 전용 어댑터(characters/<name>/adapter)를 찾음.
+    adapter_dir = Path(adapter_path) if adapter_path else characters.adapter_dir(character)
     if adapter_dir.exists():
         from peft import PeftModel
 
         model = PeftModel.from_pretrained(model, str(adapter_dir))
-        print(f"[{character}] 파인튜닝 어댑터 적용됨: {adapter_dir}")
+        print(f"[{character}] 어댑터 적용됨: {adapter_dir}")
     else:
         print(f"[{character}] base 모델만 사용 중 (어댑터 없음: {adapter_dir})")
 
@@ -73,10 +77,10 @@ def build_prompt(tokenizer, persona: str, question: str, context_chunks: list[st
     return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
 
-def main(character: str):
+def main(character: str, adapter_path: str | None = None):
     cfg = load_config()
     persona = characters.load_persona(character)
-    model, tokenizer = load_model(cfg, character)
+    model, tokenizer = load_model(cfg, character, adapter_path)
     device = next(model.parameters()).device
 
     print(f"[{character}] 질문을 입력하세요 (종료: exit)")
@@ -104,5 +108,6 @@ if __name__ == "__main__":
     cfg = load_config()
     parser = argparse.ArgumentParser()
     parser.add_argument("--character", default=cfg["active_character"])
+    parser.add_argument("--adapter", default=None, help="어댑터 경로 직접 지정 (예: adapters/persona_skill)")
     args = parser.parse_args()
-    main(args.character)
+    main(args.character, args.adapter)
