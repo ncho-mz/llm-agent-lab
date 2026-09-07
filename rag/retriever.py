@@ -1,4 +1,6 @@
 """build_index.py로 만든, 특정 캐릭터의 Chroma 인덱스에서 질의와 관련된 문서 조각을 검색한다."""
+from __future__ import annotations  # `dict | None` 같은 3.10+ 문법을 3.9에서도 되게 함 (EC2 기본 파이썬 대응)
+
 import sys
 from pathlib import Path
 
