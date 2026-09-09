@@ -3,7 +3,7 @@
 
 base_model: Qwen/Qwen3-0.6B
 load_in_4bit: false
-max_new_tokens: 256
+max_new_tokens: 1024
 
 # --character 옵션 없이 스크립트를 실행하면 이 캐릭터를 씀. characters/<name>/ 폴더로 정의됨.
 active_character: odysseus
