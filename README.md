@@ -62,10 +62,9 @@ python agent/app.py --character odysseus       # RAG만 붙은 상태로 대화 
 ### 실행
 
 ```bash
-# GPU 설정은 환경변수로 덮어쓴다 (configs/model.yaml을 직접 고치면 git pull이 충돌로 막힘).
-# ~/.bashrc 에 넣어두면 접속할 때마다 자동 적용됨.
-export LLM_LAB_BASE_MODEL=Qwen/Qwen3-8B
-export LLM_LAB_LOAD_IN_4BIT=1
+# configs/model.yaml 을 다음처럼 수정:
+#   base_model: Qwen/Qwen3-8B
+#   load_in_4bit: true
 
 python rag/build_index.py --character odysseus
 python finetune/train_qlora.py --character odysseus   # 완료되면 characters/odysseus/adapter 생성
