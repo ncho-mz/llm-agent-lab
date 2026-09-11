@@ -84,35 +84,66 @@ apm_config:
   enabled: true
 ```
 
-### GPU 모니터링 켜기
+### GPU 모니터링 켜기 (NVML 인티그레이션)
 
-요구사항: Agent v7.80 이상(7.82.0은 커널 패닉 이슈로 피할 것), 커널 5.8 이상, NVIDIA 드라이버 450.51 이상.
-g4dn + Deep Learning AMI면 드라이버/커널은 이미 충족한다.
+> 먼저 시도했던 Datadog 내장 GPU Monitoring(eBPF 기반)은 이 환경에서 동작하지 않았다.
+> Amazon Linux 2023 / 커널 6.12.103 / Tesla T4 / Agent 7.83.1 / SELinux Permissive로 요구사항을
+> 전부 충족하고, sysprobe 로그에도 `Agent found NVML library`와 `module gpu started`가 찍히는데도
+> `datadog-agent status`의 `Discovered GPUs`가 끝까지 비어 있었다. 게다가 문서가 안내하는
+> `enable_nvml_detection` 키는 7.83에서 `Unknown key in config file` 경고가 난다 -- 이미 없어진 키다.
+> 그래서 eBPF를 타지 않고 NVML만 읽는 community 인티그레이션으로 간다.
 
-`/etc/datadog-agent/datadog.yaml` — `gpu.enabled`만 중첩이고 나머지 둘은 최상위 키다:
-```yaml
-gpu:
-  enabled: true
-collect_gpu_tags: true
-enable_nvml_detection: true
-```
-
-`/etc/datadog-agent/system-probe.yaml` (없으면 예제에서 만든다):
+`nvidia-smi`가 GPU를 보는지 먼저 확인한다. 여기서 안 보이면 Datadog 문제가 아니다.
 ```bash
-sudo -u dd-agent install -m 0640 /etc/datadog-agent/system-probe.yaml.example /etc/datadog-agent/system-probe.yaml
-```
-```yaml
-gpu_monitoring:
-  enabled: true
+nvidia-smi
 ```
 
-`datadog.yaml`만 고치면 eBPF 모듈이 로드되지 않아 **메트릭이 하나도 안 들어온다.** 둘 다 필요하다.
-
+인티그레이션과 의존성 설치:
 ```bash
-sudo systemctl restart datadog-agent
-sudo systemctl restart datadog-agent-sysprobe
-sudo datadog-agent status
+sudo -u dd-agent datadog-agent integration install -t datadog-nvml==1.0.9
+sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip install pynvml grpcio
 ```
+
+설정 파일:
+```bash
+sudo tee /etc/datadog-agent/conf.d/nvml.d/conf.yaml >/dev/null <<'YAML'
+init_config:
+
+instances:
+  - {}
+YAML
+sudo chown dd-agent:dd-agent /etc/datadog-agent/conf.d/nvml.d/conf.yaml
+sudo chmod 0640 /etc/datadog-agent/conf.d/nvml.d/conf.yaml
+```
+
+**protobuf 우회가 필요하다.** 이 인티그레이션의 `api_pb2.py`는 옛날 protoc로 생성된 것이라
+Agent에 들어있는 최신 protobuf(Python 3.13)와 충돌해서 import 자체가 깨진다
+(`TypeError: Descriptors cannot be created directly`). 쿠버네티스 pod-resource 매핑용 코드라
+EC2에서는 쓰지도 않지만 모듈 최상단에서 import된다. 순수 파이썬 파싱으로 돌리면 통과한다:
+```bash
+sudo mkdir -p /etc/systemd/system/datadog-agent.service.d
+printf '[Service]
+Environment="PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python"
+'   | sudo tee /etc/systemd/system/datadog-agent.service.d/protobuf.conf >/dev/null
+sudo systemctl daemon-reload && sudo systemctl restart datadog-agent
+```
+
+확인 -- 재시작을 기다리지 않고 체크만 바로 돌려볼 수 있다:
+```bash
+sudo -u dd-agent env PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python datadog-agent check nvml
+sudo datadog-agent status | grep -A6 "nvml ("
+```
+`Instance ID: nvml:... [OK]` 와 `Metric Samples`가 나오면 된다. `nvml.gpu_utilization`,
+`nvml.fb_used`, `nvml.temperature` 등이 들어온다.
+
+### 손대지 말 것
+
+- `/etc/datadog-agent/conf.d/nvidia.d/` -- `nvidia`라는 체크는 존재하지 않는다(있는 건
+  `nvidia_nim`, `nvidia_triton`, `dcgm`). 디렉터리를 만들어두면 `Check nvidia not found in Catalog`
+  에러만 계속 찍힌다.
+- `enable_nvml_detection` -- 7.83에는 없는 키다.
+- sysprobe는 부팅 시 자동 시작이 아닐 수 있다. 내장 GPU Monitoring을 쓸 거라면
+  `sudo systemctl enable datadog-agent-sysprobe`를 꼭 같이 해야 재부팅 후에도 살아난다.
 
 ### 앱을 APM과 함께 띄우기
 
