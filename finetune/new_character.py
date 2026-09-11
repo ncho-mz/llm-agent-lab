@@ -9,7 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-import characters
+from core import characters
 
 PERSONA_TEMPLATE = """당신은 <캐릭터 이름>입니다. <성격/말투/배경을 1인칭 지시문으로 서술>.
 """
@@ -39,7 +39,7 @@ def main():
     print(f"  2. {characters.docs_dir(name)}/*.md  (참고 문서, RAG용)")
     print(f"  3. {characters.train_data_path(name)}  (대화 예시, 파인튜닝용)")
     print(f"그 다음: python rag/build_index.py --character {name}")
-    print(f"        python finetune/train_qlora.py --character {name}")
+    print(f"        python finetune/train_persona_skill.py")
     print(f"        python agent/app.py --character {name}")
 
 

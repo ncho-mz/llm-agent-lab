@@ -17,7 +17,7 @@ sys.stdin.reconfigure(encoding="utf-8")
 sys.stdout.reconfigure(encoding="utf-8")
 
 from agent.engine import CharacterEngine
-from config import load_config
+from core.config import load_config
 
 
 def main(character: str, adapter_path: str | None):

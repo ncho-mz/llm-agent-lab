@@ -9,20 +9,28 @@ RAG로 그 캐릭터의 설정 문서를 검색해서 답변하는 CLI 챗봇까
 캐릭터는 코드가 아니라 **데이터**다 — 새 캐릭터를 만드는 건 `characters/` 밑에 새 폴더를 만드는 것.
 
 ```
-configs/model.yaml          # 모델/RAG 설정 (모든 캐릭터 공통)
-characters.py                # 캐릭터별 경로 규칙
+configs/model.yaml            # 모델/RAG 설정 (모든 캐릭터 공통)
+core/                         # 공용 모듈
+  config.py                     # 설정 로딩
+  characters.py                 # 캐릭터별 경로 규칙
+  tools.py                      # 외부 검색 (Open Library 책 / DuckDuckGo 웹)
+  obs.py                        # Datadog LLM Observability 계측 (기본 no-op)
 characters/
   <이름>/
-    persona.md                # 성격/말투 (시스템 프롬프트)
-    docs/                      # RAG용 참고 문서
-    train.jsonl                # QLoRA 학습용 대화 예시
-    chroma_db/                 # build_index.py 실행 결과 (자동 생성)
-    adapter/                    # train_qlora.py 실행 결과 (자동 생성)
+    persona.md                  # 성격/말투 (시스템 프롬프트)
+    docs/                       # RAG용 참고 문서
+    train.jsonl                 # QLoRA 학습용 대화 예시
+    chroma_db/                  # build_index.py 실행 결과 (자동 생성)
 rag/                          # 문서 임베딩 -> 벡터 인덱스 -> 검색
 finetune/
-  new_character.py             # 새 캐릭터 폴더 골격 생성
-  train_qlora.py                # QLoRA 학습
-agent/app.py                   # RAG + (있으면) 파인튜닝 어댑터를 붙인 CLI 챗봇
+  new_character.py              # 새 캐릭터 폴더 골격 생성
+  train_persona_skill.py        # 여러 캐릭터를 섞어 '페르소나 따라가기'를 학습
+agent/
+  engine.py                     # 모델 로딩 + 대화 (CLI/웹 공용)
+  app.py                        # CLI 챗봇
+web/app.py                    # Gradio 웹 UI
+infra/                        # AWS 인스턴스 생성/종료 스크립트
+adapters/persona_skill/       # 학습 결과 어댑터 (자동 생성)
 ```
 
 새 캐릭터 만들기: `python finetune/new_character.py <이름>` 으로 골격을 만들고,
@@ -51,7 +59,7 @@ python agent/app.py --character odysseus       # RAG만 붙은 상태로 대화 
 
 1. **쿼터 확인**: 신규/기존 계정 모두 GPU 인스턴스(G 계열) 서비스 쿼터가 0으로 잡혀있는 경우가 많다.
    AWS 콘솔 → Service Quotas → EC2 → "Running On-Demand G and VT instances" (스팟도 별도로 "All G and VT Spot Instance Requests" 쿼터 확인) 에서 증설 요청부터 넣어둔다. 승인까지 시간이 걸릴 수 있다.
-2. **인스턴스 시작**: `cd infra && ./launch_spot_instance.sh` (스팟 쿼터 승인 전이면 `MARKET_TYPE=on-demand ./launch_spot_instance.sh`). 자세한 건 `infra/README.md` 참고.
+2. **인스턴스 시작**: `cd infra && MARKET_TYPE=on-demand ./launch_instance.sh` (스팟 쿼터가 승인돼 있으면 `MARKET_TYPE` 생략). 자세한 건 `infra/README.md` 참고.
 3. SSH로 접속 후:
    ```bash
    git clone <이 저장소>
@@ -67,7 +75,7 @@ python agent/app.py --character odysseus       # RAG만 붙은 상태로 대화 
 #   load_in_4bit: true
 
 python rag/build_index.py --character odysseus
-python finetune/train_qlora.py --character odysseus   # 완료되면 characters/odysseus/adapter 생성
+python finetune/train_persona_skill.py                 # 완료되면 adapters/persona_skill 생성
 python agent/app.py --character odysseus                # 어댑터가 있으면 자동으로 적용됨
 ```
 
@@ -113,6 +121,6 @@ export DD_API_KEY=...
 ## 다음 단계 아이디어
 
 - `characters/<이름>/train.jsonl`에 대화 예시를 더 추가해보며 결과 비교
-- `finetune/train_qlora.py`의 `target_modules`, `r`, 에폭 수 등을 조정해보며 결과 비교
+- `finetune/train_persona_skill.py`의 `target_modules`, `r`, 에폭 수 등을 조정해보며 결과 비교
 - `agent/app.py`에 도구 호출(tool use)을 추가해서 진짜 "에이전트"로 확장
 - 캐릭터를 하나 더 만들어서 (`python finetune/new_character.py <이름>`) 같은 파이프라인이 다른 캐릭터에도 그대로 재사용되는지 확인

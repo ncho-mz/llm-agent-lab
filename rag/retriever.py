@@ -12,8 +12,8 @@ sys.path.insert(0, str(REPO_ROOT))
 from sentence_transformers import SentenceTransformer
 import chromadb
 
-import characters
-from config import load_config
+from core import characters
+from core.config import load_config
 
 _embedder = None
 _collections: dict[str, "chromadb.Collection"] = {}

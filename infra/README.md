@@ -34,7 +34,7 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-3819A6DF 
 
 ## 2. 스팟 인스턴스 띄우기 (쿼터 승인 후)
 
-`infra/launch_spot_instance.sh` 실행 — 자동으로:
+`infra/launch_instance.sh` 실행 — 자동으로:
 - 이 랩 전용 키 페어(`llm-agent-lab-key`) 생성 (없으면)
 - 내 현재 IP만 SSH(22번 포트) 허용하는 보안그룹 생성 (없으면)
 - 최신 AWS Deep Learning AMI(Ubuntu, CUDA 포함) 조회
@@ -42,13 +42,13 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-3819A6DF 
 
 ```bash
 cd infra
-chmod +x launch_spot_instance.sh
-./launch_spot_instance.sh
+chmod +x launch_instance.sh
+./launch_instance.sh
 ```
 
 스팟 쿼터가 아직 승인 안 됐으면(Service Quotas에서 "All G and VT Spot Instance Requests"가 0), 온디맨드로 대신 실행:
 ```bash
-MARKET_TYPE=on-demand ./launch_spot_instance.sh
+MARKET_TYPE=on-demand ./launch_instance.sh
 ```
 (스팟 쿼터 증설은 신청해두고 기다리면서, 그동안은 온디맨드로 진행하면 됨. "Running On-Demand G and VT instances" 쿼터가 이미 있으면 바로 가능.)
 
@@ -69,5 +69,5 @@ cd infra
 
 ## 참고: g4dn.xlarge로 메모리가 부족하면
 
-`infra/launch_spot_instance.sh` 상단의 `INSTANCE_TYPE` 값을 `g5.xlarge`로 바꿔서 다시 실행하면 된다
+`infra/launch_instance.sh` 상단의 `INSTANCE_TYPE` 값을 `g5.xlarge`로 바꿔서 다시 실행하면 된다
 (A10G 24GB, 스팟 기준 시간당 약 $0.44 — g4dn 대비 조금 더 비싸지만 메모리 여유가 큼).

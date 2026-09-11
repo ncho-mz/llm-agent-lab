@@ -15,10 +15,10 @@ sys.path.insert(0, str(REPO_ROOT))
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-import characters
-import obs
-import tools
-from config import load_config
+from core import characters
+from core import obs
+from core import tools
+from core.config import load_config
 from rag.retriever import retrieve_scored
 
 SYSTEM_TEMPLATE = """{persona}

@@ -2,7 +2,7 @@
 # g4dn.xlarge(기본) 스팟 인스턴스를 띄운다. 실행 전에 infra/README.md의 0~1단계
 # (AWS CLI 설정, GPU 쿼터 승인)가 끝나 있어야 한다.
 #
-# 실행: cd infra && ./launch_spot_instance.sh
+# 실행: cd infra && ./launch_instance.sh
 set -euo pipefail
 
 INSTANCE_TYPE="${INSTANCE_TYPE:-g4dn.xlarge}"   # 메모리 부족하면 g5.xlarge로 변경

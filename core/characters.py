@@ -2,7 +2,7 @@
 데이터(페르소나, 참고문서, 학습데이터)로 정의된다 -> 새 캐릭터 = 새 폴더."""
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent
+REPO_ROOT = Path(__file__).resolve().parents[1]  # core/ 한 단계 위가 저장소 루트
 CHARACTERS_DIR = REPO_ROOT / "characters"
 
 

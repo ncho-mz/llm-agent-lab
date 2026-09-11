@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launch_spot_instance.sh로 띄운 인스턴스를 완전히 종료(terminate)한다.
+# launch_instance.sh로 띄운 인스턴스를 완전히 종료(terminate)한다.
 # 비용이 계속 나가는 걸 막으려면 쓸 때마다 잊지 말고 실행할 것.
 #
 # 실행: cd infra && ./terminate_instance.sh

@@ -20,9 +20,9 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import gradio as gr
 
-import characters
+from core import characters
 from agent.engine import CharacterEngine
-from config import load_config
+from core.config import load_config
 from rag.build_index import build_index
 
 engine: CharacterEngine | None = None

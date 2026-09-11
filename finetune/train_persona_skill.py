@@ -1,8 +1,7 @@
 """캐릭터 '하나'가 아니라, 여러 캐릭터의 (persona, instruction, response) 예시를 섞어서
 "주어진 페르소나를 잘 따라가는 능력" 자체를 학습시킨다.
 
-train_qlora.py와 차이: 그쪽은 캐릭터 한 명의 말투를 모델에 새기는 것(그 캐릭터 전용
-어댑터), 이쪽은 persona.md를 프롬프트에 직접 포함시켜서 "어떤 페르소나가 주어지든
+캐릭터 한 명만 학습시키면 그 캐릭터 전용 어댑터가 되어 새 캐릭터엔 쓸모가 없다. 이쪽은 persona.md를 프롬프트에 직접 포함시켜서 "어떤 페르소나가 주어지든
 따라가는 법"을 배우게 하는 것 -> 결과물은 특정 캐릭터 소유가 아니라 범용 어댑터라
 adapters/persona_skill/ 에 저장한다. 학습에 없던 새 캐릭터에도 이 능력이 적용되는지가
 이 접근의 핵심 가설이다 (0.6B로는 이 일반화가 잘 보이지 않을 수 있음 -> 배관 검증용).
@@ -24,8 +23,8 @@ from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTConfig, SFTTrainer
 
-import characters
-from config import load_config
+from core import characters
+from core.config import load_config
 
 OUTPUT_DIR = REPO_ROOT / "adapters" / "persona_skill"
 

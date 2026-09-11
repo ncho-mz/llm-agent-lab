@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).parent
+REPO_ROOT = Path(__file__).resolve().parents[1]  # core/ 한 단계 위가 저장소 루트
 
 
 def load_config(path: str = "configs/model.yaml") -> dict:

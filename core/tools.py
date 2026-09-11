@@ -10,7 +10,7 @@ import json
 import urllib.parse
 import urllib.request
 
-import obs
+from core import obs
 
 _TIMEOUT = 15
 _UA = "llm-agent-lab/0.1 (character chat sandbox)"
