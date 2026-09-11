@@ -1,12 +1,16 @@
 torch>=2.3
-# gradio 설치 시 transformers가 4.x로 다운그레이드되며 huggingface-hub과 충돌했었다 -> 하한 고정
-transformers>=5.0
+transformers>=4.44
+# transformers 5.x는 Python 3.10+ 에서만 설치된다. 3.9에서는 4.57.x로 내려가는데 그 계열은
+# huggingface-hub 1.x와 호환되지 않아, gradio가 hub 1.x를 끌어오면 import 자체가 깨진다.
+huggingface-hub<1.0; python_version < "3.10"
 accelerate>=0.33
 peft>=0.12
 trl>=0.9
 datasets>=2.20
 bitsandbytes>=0.43; sys_platform == "linux"
-sentence-transformers>=5.0
+# 한국어 문서를 다루므로 다국어 임베딩 모델이 필요하다 (configs/model.yaml 참고).
+# 상한을 두지 않는다 -- 예전의 <4.0 핀은 잘못된 진단(실제 원인은 Windows 콘솔 인코딩)이었다.
+sentence-transformers>=3.0
 chromadb>=0.5
 pyyaml>=6.0
 gradio>=4.44
