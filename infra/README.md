@@ -142,8 +142,11 @@ sudo datadog-agent status | grep -A6 "nvml ("
   `nvidia_nim`, `nvidia_triton`, `dcgm`). 디렉터리를 만들어두면 `Check nvidia not found in Catalog`
   에러만 계속 찍힌다.
 - `enable_nvml_detection` -- 7.83에는 없는 키다.
-- sysprobe는 부팅 시 자동 시작이 아닐 수 있다. 내장 GPU Monitoring을 쓸 거라면
-  `sudo systemctl enable datadog-agent-sysprobe`를 꼭 같이 해야 재부팅 후에도 살아난다.
+- `/etc/datadog-agent/system-probe.yaml` -- NVML 방식은 eBPF를 안 쓰므로 만들 필요가 없다.
+  내장 방식을 시도하다 만들어뒀다면 지워서 기본값(꺼짐)으로 되돌린다. 남겨두면
+  `datadog-agent status`에 GPU 모듈이 `eBPF Event Consumer: Unhealthy`로 계속 뜬다.
+- `datadog.yaml`의 `gpu.enabled`를 false로 해도 위 GPU 블록은 안 사라진다. 그건 core agent
+  체크를 끄는 것이고, status에 뜨는 GPU 블록은 system-probe 모듈이기 때문이다.
 
 ### 앱을 APM과 함께 띄우기
 
