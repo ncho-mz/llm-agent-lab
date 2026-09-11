@@ -15,3 +15,5 @@ chromadb>=0.5
 pyyaml>=6.0
 gradio>=4.44
 ddtrace>=2.10
+# 링크를 배경 지식 자료로 가져올 때 본문만 추출 (메뉴/푸터 같은 잡음 제거)
+trafilatura>=1.12

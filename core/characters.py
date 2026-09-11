@@ -30,6 +30,18 @@ def adapter_dir(name: str) -> Path:
     return character_dir(name) / "adapter"
 
 
+def avatar_path(name: str) -> Path | None:
+    """캐릭터 이미지가 있으면 그 경로. 없으면 None (웹에서 기본 애니메이션을 대신 보여준다).
+
+    나중에 이미지 생성 단계에서 여기에 파일을 떨궈 넣으면 그대로 교체된다.
+    """
+    for suffix in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+        candidate = character_dir(name) / f"avatar{suffix}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def display_name_path(name: str) -> Path:
     return character_dir(name) / "name.txt"
 

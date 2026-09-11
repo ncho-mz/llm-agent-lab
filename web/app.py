@@ -24,6 +24,8 @@ from agent.engine import CharacterEngine
 from core import characters
 from core.config import load_config
 from rag.build_index import build_index
+from rag.ingest import fetch_url_to_docs
+from web import avatar
 
 engine: CharacterEngine | None = None
 cfg = load_config()
@@ -73,6 +75,16 @@ def upload_docs(character: str, files: list | None) -> str:
     return f"✅ {len(saved)}개 추가: {', '.join(saved)}\n\n{reindex(character)}"
 
 
+def add_link(character: str, url: str) -> str:
+    """링크의 본문을 가져와 자료로 저장하고 곧바로 인덱싱한다."""
+    if not url or not url.strip():
+        return "⚠️ 주소를 입력하세요."
+    ok, message = fetch_url_to_docs(url, characters.docs_dir(character))
+    if not ok:
+        return message
+    return f"{message}\n\n{reindex(character)}"
+
+
 def reindex(character: str) -> str:
     try:
         n = build_index(character, cfg)
@@ -87,19 +99,11 @@ def index_status(character: str) -> str:
     return "⚠️ 아직 자료가 정리되지 않았습니다. 아래 '자료 다시 정리'를 눌러주세요."
 
 
-def list_docs(character: str) -> str:
-    docs_dir = characters.docs_dir(character)
-    if not docs_dir.exists():
-        return "(문서 없음)"
-    names = sorted(p.name for p in docs_dir.iterdir() if p.suffix.lower() in {".md", ".txt"})
-    return "\n".join(f"• {n}" for n in names) or "(문서 없음)"
-
-
 def on_character_change(character: str):
     return (
+        avatar.render(character),
         characters.load_display_name(character),
         load_persona_text(character),
-        list_docs(character),
         index_status(character),
         [],
     )
@@ -149,19 +153,21 @@ def build_ui() -> gr.Blocks:
                         "이 캐릭터가 사실로 알고 있어야 할 내용을 올리세요. "
                         "질문마다 관련된 부분만 찾아서 답변에 반영됩니다."
                     )
-                    doc_list = gr.Textbox(
-                        value=list_docs(default), lines=3, label="등록된 자료", interactive=False
+                    link = gr.Textbox(
+                        label="링크로 추가", placeholder="https://...", max_lines=1
                     )
+                    link_btn = gr.Button("링크 가져오기", variant="primary")
                     uploader = gr.File(
-                        file_count="multiple", file_types=[".md", ".txt"], label="자료 추가 (.md/.txt)"
+                        file_count="multiple", file_types=[".md", ".txt"], label="파일로 추가 (.md/.txt)"
                     )
-                    upload_btn = gr.Button("올리기", variant="primary")
+                    upload_btn = gr.Button("파일 올리기")
                     reindex_btn = gr.Button("자료 다시 정리", size="sm")
                     doc_status = gr.Markdown(value=index_status(default))
 
             with gr.Column(scale=2):
+                avatar_view = gr.HTML(value=avatar.render(default))
                 # gradio 6부터는 messages 형식(role/content 딕셔너리)이 기본이라 type 인자가 없다
-                chatbot = gr.Chatbot(height=520, label="대화")
+                chatbot = gr.Chatbot(height=420, label="대화")
                 msg = gr.Textbox(placeholder="캐릭터에게 말을 걸어보세요...", show_label=False)
                 with gr.Row():
                     send_btn = gr.Button("보내기", variant="primary")
@@ -179,12 +185,15 @@ def build_ui() -> gr.Blocks:
             )
 
         character.change(
-            on_character_change, character, [display_name, persona, doc_list, doc_status, chatbot]
+            on_character_change,
+            character,
+            [avatar_view, display_name, persona, doc_status, chatbot],
         )
-        save_btn.click(save_persona, [character, display_name, persona], persona_status)
-        upload_btn.click(upload_docs, [character, uploader], doc_status).then(
-            list_docs, character, doc_list
+        save_btn.click(save_persona, [character, display_name, persona], persona_status).then(
+            avatar.render, character, avatar_view
         )
+        upload_btn.click(upload_docs, [character, uploader], doc_status)
+        link_btn.click(add_link, [character, link], doc_status)
         reindex_btn.click(reindex, character, doc_status)
 
         msg.submit(respond, [msg, chatbot, character, use_adapter, allow_external], [chatbot, msg])
@@ -204,4 +213,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     engine = CharacterEngine(cfg, args.adapter)
-    build_ui().launch(server_name=args.host, server_port=args.port)
+    build_ui().launch(server_name=args.host, server_port=args.port, css=avatar.CSS)
