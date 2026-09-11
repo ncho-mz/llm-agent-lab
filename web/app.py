@@ -85,10 +85,12 @@ def on_character_change(character: str):
     return load_persona_text(character), list_docs(character), []
 
 
-def respond(message: str, history: list[dict], character: str, use_adapter: bool):
+def respond(message: str, history: list[dict], character: str, use_adapter: bool, allow_external: bool):
     if not message.strip():
         return history, ""
-    answer = engine.chat(character, message, history, use_adapter=use_adapter)
+    answer = engine.chat(
+        character, message, history, use_adapter=use_adapter, allow_external=allow_external
+    )
     history = history + [
         {"role": "user", "content": message},
         {"role": "assistant", "content": answer},
@@ -109,6 +111,11 @@ def build_ui() -> gr.Blocks:
                 value=engine.has_adapter if engine else False,
                 label="파인튜닝 어댑터 사용",
                 interactive=bool(engine and engine.has_adapter),
+                scale=1,
+            )
+            allow_external = gr.Checkbox(
+                value=True,
+                label="외부 검색 보조 (문서로 부족할 때)",
                 scale=1,
             )
 
@@ -146,8 +153,8 @@ def build_ui() -> gr.Blocks:
         )
         reindex_btn.click(reindex, character, doc_status)
 
-        msg.submit(respond, [msg, chatbot, character, use_adapter], [chatbot, msg])
-        send_btn.click(respond, [msg, chatbot, character, use_adapter], [chatbot, msg])
+        msg.submit(respond, [msg, chatbot, character, use_adapter, allow_external], [chatbot, msg])
+        send_btn.click(respond, [msg, chatbot, character, use_adapter, allow_external], [chatbot, msg])
         clear_btn.click(lambda: [], None, chatbot)
 
     return demo

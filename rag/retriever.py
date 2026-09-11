@@ -33,13 +33,26 @@ def _get_collection(character: str):
     return _collections[character]
 
 
-def retrieve(query: str, character: str, cfg: dict | None = None) -> list[str]:
+def retrieve_scored(query: str, character: str, cfg: dict | None = None) -> tuple[list[str], float]:
+    """검색된 문서 조각과 '최고 유사도'를 함께 돌려준다.
+
+    유사도가 낮으면 캐릭터 문서로는 답할 수 없다는 신호이므로, engine이 외부 검색을 부를지
+    판단하는 데 쓴다. 인덱스를 코사인 거리로 만들었으므로 유사도 = 1 - 거리.
+    """
     cfg = cfg or load_config()
     embedder = _get_embedder(cfg)
     collection = _get_collection(character)
-    query_embedding = embedder.encode([query]).tolist()
+    query_embedding = embedder.encode([query], normalize_embeddings=True).tolist()
     result = collection.query(query_embeddings=query_embedding, n_results=cfg["top_k"])
-    return result["documents"][0] if result["documents"] else []
+
+    docs = result["documents"][0] if result["documents"] else []
+    distances = result.get("distances") or [[]]
+    best = 1.0 - min(distances[0]) if distances[0] else 0.0
+    return docs, best
+
+
+def retrieve(query: str, character: str, cfg: dict | None = None) -> list[str]:
+    return retrieve_scored(query, character, cfg)[0]
 
 
 if __name__ == "__main__":

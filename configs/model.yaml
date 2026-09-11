@@ -8,10 +8,17 @@ max_new_tokens: 1024
 # --character 옵션 없이 스크립트를 실행하면 이 캐릭터를 씀. characters/<name>/ 폴더로 정의됨.
 active_character: odysseus
 
-embedding_model: sentence-transformers/all-MiniLM-L6-v2
+# 한국어 문서를 다루므로 다국어 임베딩 모델이어야 한다. 영어 전용(all-MiniLM-L6-v2)을 쓰면
+# 한국어 질문의 유사도가 사실상 무작위가 되어, 무관한 질문이 관련 질문보다 높게 나온다.
+embedding_model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 
 # RAG 설정. chunk_overlap은 문단이 chunk_size보다 길어 잘릴 때 앞 조각과 겹치는 글자 수 --
 # 문서가 많아질수록(책 한 권 등) 맥락 유실을 막는 데 중요해진다.
 chunk_size: 500
 chunk_overlap: 100
+min_chunk_chars: 40
 top_k: 5
+
+# 검색된 문서의 최고 유사도가 이 값보다 낮으면 캐릭터 문서로는 답할 수 없다고 보고
+# 외부 검색(책 정보 + 웹)을 보조로 호출한다. 0~1 (코사인 유사도)
+external_search_min_similarity: 0.45
