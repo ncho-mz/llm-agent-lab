@@ -1,10 +1,10 @@
 """캐릭터 대화 웹 앱 (Gradio).
 
-원래 구상한 화면 구성 그대로:
-  - 왼쪽 위: 캐릭터 스크립트(persona.md) 편집
-  - 왼쪽 아래: 참고 문서 업로드 -> RAG 인덱스 재생성
+화면 구성:
+  - 상단: 캐릭터 선택 (가장 눈에 띄는 자리)
+  - 왼쪽: 캐릭터 스크립트(persona.md) 편집 + 참고 문서 업로드 -> RAG 인덱스 재생성
   - 오른쪽: 캐릭터와의 대화 (대화 기억 유지)
-여기에 실험용으로 파인튜닝 어댑터 ON/OFF 토글을 추가했다.
+  - 접힌 섹션: 어댑터/외부검색 토글 (파인튜닝 효과 A/B 비교용 실험 스위치)
 
 실행: python web/app.py [--adapter adapters/persona_skill] [--port 8111]
 """
@@ -20,8 +20,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import gradio as gr
 
-from core import characters
 from agent.engine import CharacterEngine
+from core import characters
 from core.config import load_config
 from rag.build_index import build_index
 
@@ -29,9 +29,11 @@ engine: CharacterEngine | None = None
 cfg = load_config()
 
 
-def list_characters() -> list[str]:
-    names = sorted(d.name for d in characters.CHARACTERS_DIR.iterdir() if d.is_dir())
-    return names or [cfg["active_character"]]
+def character_choices() -> list[tuple[str, str]]:
+    """(화면에 보이는 한글 이름, 폴더 이름) 목록."""
+    folders = sorted(d.name for d in characters.CHARACTERS_DIR.iterdir() if d.is_dir())
+    folders = folders or [cfg["active_character"]]
+    return [(characters.load_display_name(f), f) for f in folders]
 
 
 def load_persona_text(character: str) -> str:
@@ -39,11 +41,13 @@ def load_persona_text(character: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
-def save_persona(character: str, text: str) -> str:
+def save_persona(character: str, label: str, text: str) -> str:
     if not text.strip():
         return "⚠️ 페르소나가 비어 있습니다."
     characters.persona_path(character).write_text(text, encoding="utf-8")
-    return "✅ 저장했습니다. 다음 대화부터 바로 반영됩니다."
+    if label.strip():
+        characters.save_display_name(character, label)
+    return "✅ 저장했습니다. 다음 대화부터 반영됩니다. (이름 변경은 새로고침 후 목록에 보여요)"
 
 
 def upload_docs(character: str, files: list | None) -> str:
@@ -62,7 +66,7 @@ def upload_docs(character: str, files: list | None) -> str:
 
     if not saved:
         return "⚠️ .md 또는 .txt 파일만 업로드할 수 있습니다."
-    return f"✅ {len(saved)}개 저장: {', '.join(saved)}\n아래 '인덱스 재생성'을 눌러야 검색에 반영됩니다."
+    return f"✅ {len(saved)}개 저장: {', '.join(saved)}\n'인덱스 재생성'을 눌러야 검색에 반영됩니다."
 
 
 def reindex(character: str) -> str:
@@ -82,10 +86,17 @@ def list_docs(character: str) -> str:
 
 
 def on_character_change(character: str):
-    return load_persona_text(character), list_docs(character), []
+    return (
+        characters.load_display_name(character),
+        load_persona_text(character),
+        list_docs(character),
+        [],
+    )
 
 
-def respond(message: str, history: list[dict], character: str, use_adapter: bool, allow_external: bool):
+def respond(
+    message: str, history: list[dict], character: str, use_adapter: bool, allow_external: bool
+):
     if not message.strip():
         return history, ""
     answer = engine.chat(
@@ -99,38 +110,32 @@ def respond(message: str, history: list[dict], character: str, use_adapter: bool
 
 
 def build_ui() -> gr.Blocks:
-    names = list_characters()
-    default = cfg["active_character"] if cfg["active_character"] in names else names[0]
+    choices = character_choices()
+    default = cfg["active_character"]
+    if default not in [value for _, value in choices]:
+        default = choices[0][1]
 
     with gr.Blocks(title="Character Chat") as demo:
         gr.Markdown("# 캐릭터와 대화하기")
-
-        with gr.Row():
-            character = gr.Dropdown(names, value=default, label="캐릭터", scale=3)
-            use_adapter = gr.Checkbox(
-                value=engine.has_adapter if engine else False,
-                label="파인튜닝 어댑터 사용",
-                interactive=bool(engine and engine.has_adapter),
-                scale=1,
-            )
-            allow_external = gr.Checkbox(
-                value=True,
-                label="외부 검색 보조 (문서로 부족할 때)",
-                scale=1,
-            )
+        character = gr.Radio(
+            choices=choices, value=default, label="대화할 캐릭터를 고르세요", container=True
+        )
 
         with gr.Row():
             with gr.Column(scale=1):
                 gr.Markdown("### 캐릭터 스크립트")
-                persona = gr.Textbox(
-                    value=load_persona_text(default), lines=10, label="persona.md", show_label=False
+                display_name = gr.Textbox(
+                    value=characters.load_display_name(default), label="표시 이름", max_lines=1
                 )
-                save_btn = gr.Button("페르소나 저장")
+                persona = gr.Textbox(
+                    value=load_persona_text(default), lines=9, label="성격·말투 (persona.md)"
+                )
+                save_btn = gr.Button("저장")
                 persona_status = gr.Markdown()
 
                 gr.Markdown("### 참고 문서 (RAG)")
                 doc_list = gr.Textbox(
-                    value=list_docs(default), lines=4, label="등록된 문서", interactive=False
+                    value=list_docs(default), lines=3, label="등록된 문서", interactive=False
                 )
                 uploader = gr.File(file_count="multiple", file_types=[".md", ".txt"], label="업로드")
                 with gr.Row():
@@ -146,15 +151,28 @@ def build_ui() -> gr.Blocks:
                     send_btn = gr.Button("보내기", variant="primary")
                     clear_btn = gr.Button("대화 기억 지우기")
 
-        character.change(on_character_change, character, [persona, doc_list, chatbot])
-        save_btn.click(save_persona, [character, persona], persona_status)
+        # 일반 사용자는 건드릴 일이 없지만, 파인튜닝 효과를 A/B로 비교하려면 필요해서 남겨둔다
+        with gr.Accordion("실험 설정", open=False):
+            use_adapter = gr.Checkbox(
+                value=engine.has_adapter if engine else False,
+                label="파인튜닝 어댑터 사용 (끄면 base 모델과 비교할 수 있어요)",
+                interactive=bool(engine and engine.has_adapter),
+            )
+            allow_external = gr.Checkbox(
+                value=True, label="외부 검색 보조 (문서로 답이 부족할 때 책/웹 검색)"
+            )
+
+        character.change(on_character_change, character, [display_name, persona, doc_list, chatbot])
+        save_btn.click(save_persona, [character, display_name, persona], persona_status)
         upload_btn.click(upload_docs, [character, uploader], doc_status).then(
             list_docs, character, doc_list
         )
         reindex_btn.click(reindex, character, doc_status)
 
         msg.submit(respond, [msg, chatbot, character, use_adapter, allow_external], [chatbot, msg])
-        send_btn.click(respond, [msg, chatbot, character, use_adapter, allow_external], [chatbot, msg])
+        send_btn.click(
+            respond, [msg, chatbot, character, use_adapter, allow_external], [chatbot, msg]
+        )
         clear_btn.click(lambda: [], None, chatbot)
 
     return demo

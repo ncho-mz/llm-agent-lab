@@ -30,6 +30,24 @@ def adapter_dir(name: str) -> Path:
     return character_dir(name) / "adapter"
 
 
+def display_name_path(name: str) -> Path:
+    return character_dir(name) / "name.txt"
+
+
+def load_display_name(name: str) -> str:
+    """화면에 보여줄 이름. 없으면 폴더 이름을 그대로 쓴다."""
+    path = display_name_path(name)
+    if path.exists():
+        label = path.read_text(encoding="utf-8").strip()
+        if label:
+            return label
+    return name
+
+
+def save_display_name(name: str, label: str) -> None:
+    display_name_path(name).write_text(label.strip() + "\n", encoding="utf-8")
+
+
 def load_persona(name: str) -> str:
     path = persona_path(name)
     if not path.exists():
