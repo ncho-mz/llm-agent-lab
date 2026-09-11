@@ -1,0 +1,26 @@
+services:
+  character-chat:
+    build: .
+    image: character-chat:latest
+    ports:
+      - "8111:8111"
+    volumes:
+      # 모델 가중치 캐시 -- 이게 없으면 컨테이너를 새로 띄울 때마다 16GB를 다시 받는다
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      # 웹에서 수정/업로드한 캐릭터 데이터가 컨테이너 밖에 남도록
+      - ./characters:/app/characters
+      - ./adapters:/app/adapters
+    environment:
+      # Datadog을 쓸 때만 켠다 (없으면 obs.py가 no-op으로 동작)
+      DD_LLMOBS_ENABLED: "${DD_LLMOBS_ENABLED:-0}"
+      DD_LLMOBS_AGENTLESS_ENABLED: "${DD_LLMOBS_AGENTLESS_ENABLED:-1}"
+      DD_LLMOBS_ML_APP: "${DD_LLMOBS_ML_APP:-character-chat}"
+      DD_API_KEY: "${DD_API_KEY:-}"
+      DD_SITE: "${DD_SITE:-datadoghq.com}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

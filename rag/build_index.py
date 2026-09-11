@@ -20,16 +20,32 @@ from config import load_config
 COLLECTION_NAME = "docs"
 
 
-def chunk_text(text: str, max_chars: int = 500) -> list[str]:
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+def chunk_text(text: str, max_chars: int, overlap: int) -> list[str]:
+    """문단 단위로 자르되, 긴 문단은 overlap만큼 겹치게 슬라이딩해서 쪼갠다.
+
+    겹침이 없으면 문장 중간에서 잘린 조각이 맥락을 잃는다 -- 프로필 문서 몇 조각일 땐
+    티가 안 나지만, 소설 한 권처럼 수백~수천 조각이 되면 검색 품질을 크게 떨어뜨린다.
+    """
+    if overlap >= max_chars:
+        raise ValueError(f"chunk_overlap({overlap})은 chunk_size({max_chars})보다 작아야 합니다.")
+
     chunks = []
-    for p in paragraphs:
-        for i in range(0, len(p), max_chars):
-            chunks.append(p[i : i + max_chars])
+    for paragraph in (p.strip() for p in text.split("\n\n")):
+        if not paragraph:
+            continue
+        if len(paragraph) <= max_chars:
+            chunks.append(paragraph)
+            continue
+
+        step = max_chars - overlap
+        for start in range(0, len(paragraph), step):
+            chunks.append(paragraph[start : start + max_chars])
+            if start + max_chars >= len(paragraph):
+                break
     return chunks
 
 
-def build_index(character: str, cfg: dict):
+def build_index(character: str, cfg: dict) -> int:
     docs_dir = characters.docs_dir(character)
     files = sorted(docs_dir.glob("*.md")) + sorted(docs_dir.glob("*.txt"))
     if not files:
@@ -37,7 +53,12 @@ def build_index(character: str, cfg: dict):
 
     ids, texts, metadatas = [], [], []
     for file in files:
-        for idx, chunk in enumerate(chunk_text(file.read_text(encoding="utf-8"))):
+        pieces = chunk_text(
+            file.read_text(encoding="utf-8"),
+            max_chars=cfg["chunk_size"],
+            overlap=cfg["chunk_overlap"],
+        )
+        for idx, chunk in enumerate(pieces):
             ids.append(f"{file.stem}-{idx}")
             texts.append(chunk)
             metadatas.append({"source": file.name})
@@ -48,13 +69,13 @@ def build_index(character: str, cfg: dict):
     embeddings = embedder.encode(texts, show_progress_bar=True).tolist()
 
     client = chromadb.PersistentClient(path=str(characters.chroma_dir(character)))
-    existing = [c.name for c in client.list_collections()]
-    if COLLECTION_NAME in existing:
+    if COLLECTION_NAME in [c.name for c in client.list_collections()]:
         client.delete_collection(COLLECTION_NAME)
     collection = client.create_collection(COLLECTION_NAME)
     collection.add(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
 
     print(f"[{character}] 인덱스 저장 완료: {characters.chroma_dir(character)}")
+    return len(texts)
 
 
 if __name__ == "__main__":

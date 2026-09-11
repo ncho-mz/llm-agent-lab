@@ -1,10 +1,13 @@
 torch>=2.3
-transformers>=4.44
+# gradio 설치 시 transformers가 4.x로 다운그레이드되며 huggingface-hub과 충돌했었다 -> 하한 고정
+transformers>=5.0
 accelerate>=0.33
 peft>=0.12
 trl>=0.9
 datasets>=2.20
 bitsandbytes>=0.43; sys_platform == "linux"
-sentence-transformers>=3.0,<4.0
+sentence-transformers>=5.0
 chromadb>=0.5
 pyyaml>=6.0
+gradio>=4.44
+ddtrace>=2.10

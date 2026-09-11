@@ -80,6 +80,36 @@ python agent/app.py --character odysseus                # 어댑터가 있으면
 - 학습 자체는 보통 몇 분~1시간 이내로 끝난다 (예시 데이터셋이 작음). 하루 종일 켜둘 필요 없음.
 - 스팟 인스턴스는 중간에 회수(interrupt)될 수 있다 — 지금 데이터셋 규모라면 크게 문제되지 않지만, 데이터셋을 키운다면 체크포인트 저장 로직을 추가하는 걸 권장.
 
+## 3단계: 웹 앱 + 컨테이너
+
+### 직접 실행
+```bash
+python web/app.py --adapter adapters/persona_skill --port 8111
+```
+
+### Docker로 실행
+```bash
+# 호스트에 nvidia-container-toolkit이 설치돼 있어야 컨테이너가 GPU를 본다
+docker compose up --build
+```
+
+모델 가중치(약 16GB)는 이미지에 넣지 않고 호스트의 `~/.cache/huggingface`를 마운트해서 쓴다.
+`characters/`와 `adapters/`도 마운트하므로, 웹에서 페르소나를 수정하거나 문서를 업로드하면
+컨테이너를 지워도 남는다.
+
+### 접속
+EC2 보안그룹에서 **8111 포트를 내 IP에만** 열고 `http://<퍼블릭IP>:8111` 로 접속한다.
+0.0.0.0/0으로 열면 누구나 이 GPU로 추론을 돌릴 수 있으니 피할 것.
+
+### 관측 (Datadog, 선택)
+```bash
+export DD_LLMOBS_ENABLED=1
+export DD_LLMOBS_AGENTLESS_ENABLED=1    # Datadog Agent 없이 직접 전송
+export DD_API_KEY=...
+```
+켜지 않으면 `obs.py`가 no-op으로 동작하므로 ddtrace 설정 없이도 그대로 돌아간다.
+계측 지점은 RAG 검색(retrieval), 모델 생성(llm), 요청 전체(workflow) 세 곳이다.
+
 ## 다음 단계 아이디어
 
 - `characters/<이름>/train.jsonl`에 대화 예시를 더 추가해보며 결과 비교
