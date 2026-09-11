@@ -1,9 +1,10 @@
 """캐릭터 대화 웹 앱 (Gradio).
 
 화면 구성:
-  - 상단: 캐릭터 선택 (가장 눈에 띄는 자리)
-  - 왼쪽: 캐릭터 스크립트(persona.md) 편집 + 참고 문서 업로드 -> RAG 인덱스 재생성
-  - 오른쪽: 캐릭터와의 대화 (대화 기억 유지)
+  - 상단: 캐릭터 선택 (많아지면 옆으로 스크롤)
+  - 왼쪽: 캐릭터 스크립트(persona.md) 편집 + 배경 지식 자료(링크/파일)
+  - 가운데: 대화 (대화 기억 유지)
+  - 오른쪽: 캐릭터 창 (세로로 크게)
   - 접힌 섹션: 어댑터/외부검색 토글 (파인튜닝 효과 A/B 비교용 실험 스위치)
 
 실행: python web/app.py [--adapter adapters/persona_skill] [--port 8111]
@@ -43,13 +44,11 @@ def load_persona_text(character: str) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
-def save_persona(character: str, label: str, text: str) -> str:
+def save_persona(character: str, text: str) -> str:
     if not text.strip():
         return "⚠️ 페르소나가 비어 있습니다."
     characters.persona_path(character).write_text(text, encoding="utf-8")
-    if label.strip():
-        characters.save_display_name(character, label)
-    return "✅ 저장했습니다. 다음 대화부터 반영됩니다. (이름 변경은 새로고침 후 목록에 보여요)"
+    return "✅ 저장했습니다. 다음 대화부터 반영됩니다."
 
 
 def upload_docs(character: str, files: list | None) -> str:
@@ -102,7 +101,6 @@ def index_status(character: str) -> str:
 def on_character_change(character: str):
     return (
         avatar.render(character),
-        characters.load_display_name(character),
         load_persona_text(character),
         index_status(character),
         [],
@@ -130,18 +128,24 @@ def build_ui() -> gr.Blocks:
     if default not in [value for _, value in choices]:
         default = choices[0][1]
 
-    with gr.Blocks(title="Character Chat") as demo:
-        gr.Markdown("# 캐릭터와 대화하기")
+    with gr.Blocks(title="접견실") as demo:
+        gr.HTML(
+            '<div class="app-header">'
+            "<h1>접견실</h1>"
+            "<p>시대를 건너온 인물들과 마주 앉는 자리</p>"
+            "</div>"
+        )
         character = gr.Radio(
-            choices=choices, value=default, label="대화할 캐릭터를 고르세요", container=True
+            choices=choices,
+            value=default,
+            label="누구를 만나시겠습니까?",
+            container=True,
+            elem_classes="character-picker",
         )
 
         with gr.Row():
-            with gr.Column(scale=1):
+            with gr.Column(scale=2):
                 gr.Markdown("### 캐릭터 스크립트")
-                display_name = gr.Textbox(
-                    value=characters.load_display_name(default), label="표시 이름", max_lines=1
-                )
                 persona = gr.Textbox(
                     value=load_persona_text(default), lines=9, label="성격·말투 (persona.md)"
                 )
@@ -164,14 +168,16 @@ def build_ui() -> gr.Blocks:
                     reindex_btn = gr.Button("자료 다시 정리", size="sm")
                     doc_status = gr.Markdown(value=index_status(default))
 
-            with gr.Column(scale=2):
-                avatar_view = gr.HTML(value=avatar.render(default))
+            with gr.Column(scale=3):
                 # gradio 6부터는 messages 형식(role/content 딕셔너리)이 기본이라 type 인자가 없다
-                chatbot = gr.Chatbot(height=420, label="대화")
-                msg = gr.Textbox(placeholder="캐릭터에게 말을 걸어보세요...", show_label=False)
+                chatbot = gr.Chatbot(height=480, label="대화")
+                msg = gr.Textbox(placeholder="말을 걸어보세요...", show_label=False)
                 with gr.Row():
                     send_btn = gr.Button("보내기", variant="primary")
                     clear_btn = gr.Button("대화 기억 지우기")
+
+            with gr.Column(scale=1, min_width=220):
+                avatar_view = gr.HTML(value=avatar.render(default))
 
         # 일반 사용자는 건드릴 일이 없지만, 파인튜닝 효과를 A/B로 비교하려면 필요해서 남겨둔다
         with gr.Accordion("실험 설정", open=False):
@@ -187,11 +193,9 @@ def build_ui() -> gr.Blocks:
         character.change(
             on_character_change,
             character,
-            [avatar_view, display_name, persona, doc_status, chatbot],
+            [avatar_view, persona, doc_status, chatbot],
         )
-        save_btn.click(save_persona, [character, display_name, persona], persona_status).then(
-            avatar.render, character, avatar_view
-        )
+        save_btn.click(save_persona, [character, persona], persona_status)
         upload_btn.click(upload_docs, [character, uploader], doc_status)
         link_btn.click(add_link, [character, link], doc_status)
         reindex_btn.click(reindex, character, doc_status)
