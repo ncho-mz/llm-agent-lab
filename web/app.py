@@ -51,6 +51,10 @@ def save_persona(character: str, label: str, text: str) -> str:
 
 
 def upload_docs(character: str, files: list | None) -> str:
+    """파일을 저장하고 곧바로 검색 인덱스까지 다시 만든다.
+
+    인덱싱을 사용자가 따로 눌러야 하면, 올려놓고 왜 답에 반영이 안 되는지 헷갈리게 된다.
+    """
     if not files:
         return "⚠️ 업로드할 파일을 선택하세요."
     docs_dir = characters.docs_dir(character)
@@ -66,7 +70,7 @@ def upload_docs(character: str, files: list | None) -> str:
 
     if not saved:
         return "⚠️ .md 또는 .txt 파일만 업로드할 수 있습니다."
-    return f"✅ {len(saved)}개 저장: {', '.join(saved)}\n'인덱스 재생성'을 눌러야 검색에 반영됩니다."
+    return f"✅ {len(saved)}개 추가: {', '.join(saved)}\n\n{reindex(character)}"
 
 
 def reindex(character: str) -> str:
@@ -74,7 +78,13 @@ def reindex(character: str) -> str:
         n = build_index(character, cfg)
     except SystemExit as e:
         return f"⚠️ {e}"
-    return f"✅ 인덱스 재생성 완료 — {n}개 청크"
+    return f"✅ 이제 이 자료를 참고해서 답합니다 ({n}개 조각으로 정리됨)"
+
+
+def index_status(character: str) -> str:
+    if characters.chroma_dir(character).exists():
+        return ""
+    return "⚠️ 아직 자료가 정리되지 않았습니다. 아래 '자료 다시 정리'를 눌러주세요."
 
 
 def list_docs(character: str) -> str:
@@ -90,6 +100,7 @@ def on_character_change(character: str):
         characters.load_display_name(character),
         load_persona_text(character),
         list_docs(character),
+        index_status(character),
         [],
     )
 
@@ -133,15 +144,20 @@ def build_ui() -> gr.Blocks:
                 save_btn = gr.Button("저장")
                 persona_status = gr.Markdown()
 
-                gr.Markdown("### 참고 문서 (RAG)")
-                doc_list = gr.Textbox(
-                    value=list_docs(default), lines=3, label="등록된 문서", interactive=False
-                )
-                uploader = gr.File(file_count="multiple", file_types=[".md", ".txt"], label="업로드")
-                with gr.Row():
-                    upload_btn = gr.Button("문서 저장")
-                    reindex_btn = gr.Button("인덱스 재생성", variant="primary")
-                doc_status = gr.Markdown()
+                with gr.Accordion("배경 지식 자료 (선택)", open=False):
+                    gr.Markdown(
+                        "이 캐릭터가 사실로 알고 있어야 할 내용을 올리세요. "
+                        "질문마다 관련된 부분만 찾아서 답변에 반영됩니다."
+                    )
+                    doc_list = gr.Textbox(
+                        value=list_docs(default), lines=3, label="등록된 자료", interactive=False
+                    )
+                    uploader = gr.File(
+                        file_count="multiple", file_types=[".md", ".txt"], label="자료 추가 (.md/.txt)"
+                    )
+                    upload_btn = gr.Button("올리기", variant="primary")
+                    reindex_btn = gr.Button("자료 다시 정리", size="sm")
+                    doc_status = gr.Markdown(value=index_status(default))
 
             with gr.Column(scale=2):
                 # gradio 6부터는 messages 형식(role/content 딕셔너리)이 기본이라 type 인자가 없다
@@ -162,7 +178,9 @@ def build_ui() -> gr.Blocks:
                 value=True, label="외부 검색 보조 (문서로 답이 부족할 때 책/웹 검색)"
             )
 
-        character.change(on_character_change, character, [display_name, persona, doc_list, chatbot])
+        character.change(
+            on_character_change, character, [display_name, persona, doc_list, doc_status, chatbot]
+        )
         save_btn.click(save_persona, [character, display_name, persona], persona_status)
         upload_btn.click(upload_docs, [character, uploader], doc_status).then(
             list_docs, character, doc_list
