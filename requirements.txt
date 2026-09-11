@@ -14,6 +14,9 @@ sentence-transformers>=3.0
 chromadb>=0.5
 pyyaml>=6.0
 gradio>=4.44
-ddtrace>=2.10
+# SSI(Single Step Instrumentation)는 쓰지 않는다 -- SSI가 주입하는 ddtrace는 PYTHONPATH를 통해
+# venv 것보다 먼저 잡히기 때문에, pip show가 보여주는 버전과 실제로 도는 버전이 달라진다.
+# APM은 ddtrace-run으로 이 한 벌만 쓴다. 메이저를 고정하는 건 llmobs API가 메이저에서 바뀌기 때문.
+ddtrace>=4.14,<5
 # 링크를 배경 지식 자료로 가져올 때 본문만 추출 (메뉴/푸터 같은 잡음 제거)
 trafilatura>=1.12

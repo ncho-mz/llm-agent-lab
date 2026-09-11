@@ -24,4 +24,6 @@ EXPOSE 8111
 
 # 캐릭터 데이터(characters/)와 어댑터(adapters/)는 볼륨으로 마운트하는 것을 전제로 한다.
 # 웹에서 페르소나를 수정하거나 문서를 업로드하면 컨테이너 밖에 남아야 하기 때문.
-CMD ["python", "web/app.py", "--adapter", "adapters/persona_skill", "--port", "8111"]
+# ddtrace-run으로 띄우되, DD_TRACE_ENABLED가 false면(기본값) 아무것도 추적하지 않는다.
+# SSI 주입 대신 이 방식을 쓰는 이유는 requirements.txt의 ddtrace 항목 참고.
+CMD ["ddtrace-run", "python", "web/app.py", "--adapter", "adapters/persona_skill", "--port", "8111"]

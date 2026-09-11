@@ -110,13 +110,30 @@ EC2 보안그룹에서 **8111 포트를 내 IP에만** 열고 `http://<퍼블릭
 0.0.0.0/0으로 열면 누구나 이 GPU로 추론을 돌릴 수 있으니 피할 것.
 
 ### 관측 (Datadog, 선택)
+
+APM은 **SSI(Single Step Instrumentation)를 쓰지 않고** `ddtrace-run`으로 직접 건다.
+SSI를 켜면 Agent가 받아둔 ddtrace가 PYTHONPATH를 통해 venv 것보다 먼저 잡혀서, `pip show`가
+보여주는 버전과 실제로 도는 버전이 달라진다. Agent 설치는 [infra/README.md](infra/README.md) 참고.
+
+호스트에 Datadog Agent가 떠 있을 때:
 ```bash
-export DD_LLMOBS_ENABLED=1
-export DD_LLMOBS_AGENTLESS_ENABLED=1    # Datadog Agent 없이 직접 전송
-export DD_API_KEY=...
+export DD_LLMOBS_ENABLED=1 DD_TRACE_ENABLED=true
+export DD_LLMOBS_ML_APP=character-chat DD_SERVICE=character-chat DD_ENV=dev
+ddtrace-run python web/app.py --adapter adapters/persona_skill --port 8111
 ```
-켜지 않으면 `obs.py`가 no-op으로 동작하므로 ddtrace 설정 없이도 그대로 돌아간다.
-계측 지점은 RAG 검색(retrieval), 모델 생성(llm), 요청 전체(workflow) 세 곳이다.
+
+Agent 없이 Datadog으로 바로 보내려면(agentless):
+```bash
+export DD_LLMOBS_ENABLED=1 DD_LLMOBS_AGENTLESS_ENABLED=1
+export DD_API_KEY=... DD_SITE=datadoghq.com
+python web/app.py --adapter adapters/persona_skill --port 8111
+```
+
+Docker로 띄울 때는 `docker-compose.yml`이 같은 변수를 그대로 넘기므로 `.env`에 값만 채우면 된다.
+컨테이너에서 호스트의 Agent로 보내는 경로(`DD_AGENT_HOST` + `extra_hosts`)도 이미 잡혀 있다.
+
+아무것도 켜지 않으면 `obs.py`는 no-op으로, `ddtrace-run`은 추적 없이 동작하므로 Datadog 설정
+없이도 그대로 돌아간다. 계측 지점은 RAG 검색(retrieval), 모델 생성(llm), 요청 전체(workflow) 세 곳이다.
 
 ## 다음 단계 아이디어
 

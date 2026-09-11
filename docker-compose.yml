@@ -11,12 +11,21 @@ services:
       - ./characters:/app/characters
       - ./adapters:/app/adapters
     environment:
-      # Datadog을 쓸 때만 켠다 (없으면 obs.py가 no-op으로 동작)
+      # Datadog을 쓸 때만 켠다. 끄면 obs.py는 no-op이고 ddtrace-run도 추적하지 않는다.
       DD_LLMOBS_ENABLED: "${DD_LLMOBS_ENABLED:-0}"
-      DD_LLMOBS_AGENTLESS_ENABLED: "${DD_LLMOBS_AGENTLESS_ENABLED:-1}"
+      DD_TRACE_ENABLED: "${DD_TRACE_ENABLED:-false}"
       DD_LLMOBS_ML_APP: "${DD_LLMOBS_ML_APP:-character-chat}"
+      DD_SERVICE: "${DD_SERVICE:-character-chat}"
+      DD_ENV: "${DD_ENV:-dev}"
+      # 호스트에 설치한 Agent로 보낸다. 컨테이너 안에서 localhost는 컨테이너 자신이라
+      # 아래 extra_hosts로 호스트를 가리켜줘야 한다.
+      DD_AGENT_HOST: "${DD_AGENT_HOST:-host.docker.internal}"
+      # Agent 없이 Datadog으로 바로 쏠 때만 채운다
+      DD_LLMOBS_AGENTLESS_ENABLED: "${DD_LLMOBS_AGENTLESS_ENABLED:-0}"
       DD_API_KEY: "${DD_API_KEY:-}"
       DD_SITE: "${DD_SITE:-datadoghq.com}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         reservations:

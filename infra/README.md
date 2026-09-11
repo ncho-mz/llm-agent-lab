@@ -57,7 +57,77 @@ MARKET_TYPE=on-demand ./launch_instance.sh
 ssh -i llm-agent-lab-key.pem ubuntu@<출력된 IP>
 ```
 
-## 3. 사용 후 정리 (비용 관리, 매번 잊지 말 것)
+## 3. Datadog Agent 설치 (선택, 관측을 붙일 때)
+
+### SSI는 쓰지 않는다
+
+설치 스크립트에 `DD_APM_INSTRUMENTATION_ENABLED=host`와 `DD_APM_INSTRUMENTATION_LIBRARIES=python:N`을
+주면(Single Step Instrumentation) Agent가 자체 ddtrace를 `/opt/datadog-packages/` 밑에 받아두고,
+`/etc/ld.so.preload`로 모든 프로세스의 exec을 가로채 `PYTHONPATH`에 그 경로를 꽂는다.
+`PYTHONPATH`는 venv의 site-packages보다 **앞**이라, venv를 activate해도 `import ddtrace`는
+주입된 쪽을 집어온다. 그러면 `pip show ddtrace`가 보여주는 버전과 실제로 도는 버전이 달라져서
+`core/obs.py`가 왜 깨지는지 추적할 수 없게 된다. 그래서 APM은 앱을 `ddtrace-run`으로 띄워서 직접 건다.
+
+### Agent 설치 (APM 주입 없이)
+
+```bash
+DD_API_KEY=<키> DD_SITE="datadoghq.com" DD_ENV=dev bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"
+```
+
+`DD_APM_INSTRUMENTATION_*` 변수가 없는 것이 핵심이다.
+
+### APM 수신 켜기
+
+`/etc/datadog-agent/datadog.yaml`:
+```yaml
+apm_config:
+  enabled: true
+```
+
+### GPU 모니터링 켜기
+
+요구사항: Agent v7.80 이상(7.82.0은 커널 패닉 이슈로 피할 것), 커널 5.8 이상, NVIDIA 드라이버 450.51 이상.
+g4dn + Deep Learning AMI면 드라이버/커널은 이미 충족한다.
+
+`/etc/datadog-agent/datadog.yaml` — `gpu.enabled`만 중첩이고 나머지 둘은 최상위 키다:
+```yaml
+gpu:
+  enabled: true
+collect_gpu_tags: true
+enable_nvml_detection: true
+```
+
+`/etc/datadog-agent/system-probe.yaml` (없으면 예제에서 만든다):
+```bash
+sudo -u dd-agent install -m 0640 /etc/datadog-agent/system-probe.yaml.example /etc/datadog-agent/system-probe.yaml
+```
+```yaml
+gpu_monitoring:
+  enabled: true
+```
+
+`datadog.yaml`만 고치면 eBPF 모듈이 로드되지 않아 **메트릭이 하나도 안 들어온다.** 둘 다 필요하다.
+
+```bash
+sudo systemctl restart datadog-agent
+sudo systemctl restart datadog-agent-sysprobe
+sudo datadog-agent status
+```
+
+### 앱을 APM과 함께 띄우기
+
+```bash
+export DD_LLMOBS_ENABLED=1 DD_TRACE_ENABLED=true
+export DD_LLMOBS_ML_APP=character-chat DD_SERVICE=character-chat DD_ENV=dev
+ddtrace-run python web/app.py --adapter adapters/persona_skill --port 8111
+```
+
+의도한 ddtrace가 잡혔는지 확인 (경로가 venv 안이어야 한다):
+```bash
+python -c "import ddtrace; print(ddtrace.__version__, ddtrace.__file__)"
+```
+
+## 4. 사용 후 정리 (비용 관리, 매번 잊지 말 것)
 
 ```bash
 cd infra
